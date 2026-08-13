@@ -5,7 +5,7 @@ interface WordBankTabProps {
   onAppendToMainPrompt?: (text: string) => void;
 }
 
-// Categorized Beautiful Lyric Vocabulary Presets
+// Categorized Beautiful Lyric Vocabulary Presets (125+ Curated Poetic Words)
 export const LYRIC_PRESETS: Record<string, { name: string; emoji: string; words: string[] }> = {
   atmospheric: {
     name: 'Atmospheric & Celestial',
@@ -14,7 +14,9 @@ export const LYRIC_PRESETS: Record<string, { name: string; emoji: string; words:
       'ethereal', 'labyrinth', 'solitude', 'ephemeral', 'mellifluous',
       'aurora', 'serendipity', 'celestial', 'reverie', 'nostalgia',
       'luminous', 'halcyon', 'twilight', 'petrichor', 'limerence',
-      'oblivion', 'sanctuary', 'cascade', 'infinite', 'whisper'
+      'oblivion', 'sanctuary', 'cascade', 'infinite', 'whisper',
+      'stardust', 'horizon', 'eclipse', 'radiance', 'supernal',
+      'incandescent', 'nocturnal', 'constellation', 'interstellar'
     ]
   },
   visual: {
@@ -24,7 +26,9 @@ export const LYRIC_PRESETS: Record<string, { name: string; emoji: string; words:
       'crimson', 'gilded', 'translucent', 'jagged', 'obsidian',
       'weathered', 'velvet', 'prism', 'shimmer', 'starlight',
       'fractured', 'neon', 'shadows', 'echoes', 'horizon',
-      'silver', 'midnight', 'amber', 'golden', 'faded'
+      'silver', 'midnight', 'amber', 'golden', 'faded',
+      'iridescent', 'sapphire', 'kaleidoscope', 'velvet shadows',
+      'crystalline', 'silhouette', 'monochrome', 'opalescent'
     ]
   },
   sensory: {
@@ -34,7 +38,8 @@ export const LYRIC_PRESETS: Record<string, { name: string; emoji: string; words:
       'frigid', 'brittle', 'searing', 'honeyed', 'charred',
       'intoxicating', 'whispering', 'resonant', 'velvet warmth', 'burning',
       'melancholy', 'electric glow', 'soft rain', 'heavy reverb', 'subtle crackle',
-      'hollow sound', 'silken touch', 'bitter taste', 'crisp air', 'deep groove'
+      'hollow sound', 'silken touch', 'bitter taste', 'crisp air', 'deep groove',
+      'velvet silence', 'haunting melody', 'warm embrace', 'frozen pulse', 'quiet storm'
     ]
   },
   verbs: {
@@ -44,17 +49,19 @@ export const LYRIC_PRESETS: Record<string, { name: string; emoji: string; words:
       'drifted', 'surged', 'tumbled', 'prowled', 'vanished',
       'gazed', 'murmured', 'pierced', 'echoed', 'faded',
       'shattered', 'bloomed', 'entwined', 'ignited', 'dissolved',
-      'lingered', 'scattered', 'haunted', 'collided', 'unraveled'
+      'lingered', 'scattered', 'haunted', 'collided', 'unraveled',
+      'transcended', 'shimmered', 'awakened', 'surrendered', 'mesmerized'
     ]
   },
   emotions: {
-    name: 'Emotions & Heart',
+    name: 'Emotions & Heartbreak',
     emoji: '❤️',
     words: [
       'bittersweet', 'unspoken', 'yearning', 'wildfire', 'euphoria',
       'heartache', 'reckless', 'sacred', 'vulnerable', 'forever',
       'timeless', 'tender', 'captivated', 'breathless', 'devotion',
-      'surrender', 'lonely grace', 'silent echo', 'unbreakable', 'restless'
+      'surrender', 'lonely grace', 'silent echo', 'unbreakable', 'restless',
+      'phantom love', 'fragile promises', 'everlasting', 'hidden scars', 'magnetic pull'
     ]
   }
 };
