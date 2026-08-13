@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Plus, Trash2, Dices, Copy, Check, Sparkles, X, ArrowUpRight, BookOpen, Layers, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Dices, Copy, Check, Sparkles, X, ArrowUpRight, BookOpen, Layers, AlertCircle, FileText, RefreshCw } from 'lucide-react';
 
 interface WordBankTabProps {
   onAppendToMainPrompt?: (text: string) => void;
@@ -70,7 +70,6 @@ export const LYRIC_PRESETS: Record<string, { name: string; emoji: string; words:
 const ALL_INITIAL_WORDS = Array.from(
   new Set(Object.values(LYRIC_PRESETS).flatMap((cat) => cat.words.map((w) => w.trim().toLowerCase())))
 ).map((w) => {
-  // Find original casing if any
   const found = Object.values(LYRIC_PRESETS).flatMap((cat) => cat.words).find((orig) => orig.toLowerCase() === w);
   return found || w;
 });
@@ -79,14 +78,21 @@ export const WordBankTab: React.FC<WordBankTabProps> = ({ onAppendToMainPrompt }
   // Words list state initialized with full lyric dictionary
   const [words, setWords] = useState<string[]>(ALL_INITIAL_WORDS);
   const [newWordInput, setNewWordInput] = useState<string>('');
+  const [bulkInput, setBulkInput] = useState<string>('');
+  const [showBulkMode, setShowBulkMode] = useState<boolean>(false);
   const [wordCount, setWordCount] = useState<number>(4);
   const [generatedResult, setGeneratedResult] = useState<string[]>([]);
   const [copied, setCopied] = useState<boolean>(false);
   const [appended, setAppended] = useState<boolean>(false);
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
 
-  // Duplicate detection notification state
-  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  // Status notification state
+  const [notification, setNotification] = useState<{ text: string; type: 'info' | 'warning' | 'success' } | null>(null);
+
+  const showStatus = useCallback((text: string, type: 'info' | 'warning' | 'success' = 'info') => {
+    setNotification({ text, type });
+    setTimeout(() => setNotification(null), 3500);
+  }, []);
 
   // Helper to check if a word exists (case-insensitive)
   const isDuplicate = useCallback((wordToCheck: string, currentList: string[]): boolean => {
@@ -94,22 +100,62 @@ export const WordBankTab: React.FC<WordBankTabProps> = ({ onAppendToMainPrompt }
     return currentList.some((w) => w.trim().toLowerCase() === target);
   }, []);
 
-  // Add word handler with duplicate detection
+  // Add single word handler with duplicate detection
   const handleAddWord = useCallback(() => {
     const trimmed = newWordInput.trim();
     if (!trimmed) return;
 
-    // Check duplicate
     if (isDuplicate(trimmed, words)) {
-      setDuplicateWarning(`Kata "${trimmed}" sudah ada di dalam Word Bank!`);
-      setTimeout(() => setDuplicateWarning(null), 3000);
+      showStatus(`Kata "${trimmed}" sudah ada di dalam Word Bank!`, 'warning');
       return;
     }
 
-    setDuplicateWarning(null);
     setWords((prev) => [trimmed, ...prev]);
     setNewWordInput('');
-  }, [newWordInput, words, isDuplicate]);
+    showStatus(`Berhasil menambahkan "${trimmed}"!`, 'success');
+  }, [newWordInput, words, isDuplicate, showStatus]);
+
+  // Add Bulk Words handler (comma, newline, or semicolon separated)
+  const handleAddBulkWords = useCallback(() => {
+    if (!bulkInput.trim()) return;
+
+    // Split by commas, newlines, or semicolons
+    const rawItems = bulkInput
+      .split(/[,\n;]+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    if (rawItems.length === 0) return;
+
+    const existingMap = new Set(words.map((w) => w.toLowerCase()));
+    const uniqueAdded: string[] = [];
+    let duplicateCount = 0;
+
+    for (const item of rawItems) {
+      const lower = item.toLowerCase();
+      if (existingMap.has(lower)) {
+        duplicateCount++;
+      } else {
+        existingMap.add(lower);
+        uniqueAdded.push(item);
+      }
+    }
+
+    if (uniqueAdded.length === 0) {
+      showStatus(`Semua ${rawItems.length} kata dari masukan bulk sudah ada di Word Bank!`, 'warning');
+      return;
+    }
+
+    setWords((prev) => [...uniqueAdded, ...prev]);
+    setBulkInput('');
+    setShowBulkMode(false);
+    showStatus(
+      `Berhasil menambahkan ${uniqueAdded.length} kata baru secara bulk! ${
+        duplicateCount > 0 ? `(${duplicateCount} kata duplikat dilewati)` : ''
+      }`,
+      'success'
+    );
+  }, [bulkInput, words, showStatus]);
 
   // Load a specific category preset into the bank with deduplication
   const handleLoadPresetCategory = useCallback((catKey: string) => {
@@ -118,32 +164,33 @@ export const WordBankTab: React.FC<WordBankTabProps> = ({ onAppendToMainPrompt }
       const existingMap = new Set(prev.map((w) => w.toLowerCase()));
       const uniqueNew = catWords.filter((w) => !existingMap.has(w.toLowerCase()));
       if (uniqueNew.length === 0) {
-        setDuplicateWarning(`Semua kata dari kategori ${LYRIC_PRESETS[catKey]?.name} sudah ada di Word Bank!`);
-        setTimeout(() => setDuplicateWarning(null), 3000);
+        showStatus(`Semua kata dari kategori ${LYRIC_PRESETS[catKey]?.name} sudah ada di Word Bank!`, 'warning');
+      } else {
+        showStatus(`Menambahkan ${uniqueNew.length} kata dari kategori ${LYRIC_PRESETS[catKey]?.name}!`, 'success');
       }
       return [...uniqueNew, ...prev];
     });
     setActiveCategoryFilter(catKey);
-  }, []);
+  }, [showStatus]);
 
   // Load all presets deduplicated
   const handleLoadAllPresets = useCallback(() => {
     setWords(ALL_INITIAL_WORDS);
     setActiveCategoryFilter(null);
-    setDuplicateWarning(null);
-  }, []);
+    showStatus('Word Bank di-reset ke dictionary bawaan (125+ kata puitis)!', 'success');
+  }, [showStatus]);
 
   // Remove single word handler
   const handleRemoveWord = useCallback((indexToRemove: number) => {
     setWords((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   }, []);
 
-  // Clear all words
+  // Clear ALL words from the Word Bank
   const handleClearAll = useCallback(() => {
     setWords([]);
     setGeneratedResult([]);
-    setDuplicateWarning(null);
-  }, []);
+    showStatus('Seluruh kata di Word Bank telah dihapus (Word Bank Kosong)!', 'info');
+  }, [showStatus]);
 
   // Generate random words handler for lyric inspiration (strictly unique)
   const handleGenerateRandom = useCallback(() => {
@@ -190,18 +237,32 @@ export const WordBankTab: React.FC<WordBankTabProps> = ({ onAppendToMainPrompt }
     <div className="space-y-6">
       {/* Tab Header Banner */}
       <div className="rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-950/40 via-indigo-950/40 to-slate-950/40 p-5 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-500/20 text-purple-300">
-            <BookOpen className="h-5 w-5" />
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-500/20 text-purple-300">
+              <BookOpen className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-black tracking-wider text-white uppercase">
+                LYRIC WORD BANK & INSPIRATION
+              </h2>
+              <p className="text-xs text-zinc-300">
+                Curate beautiful, evocative vocabulary for song lyric writing with automatic duplicate detection & bulk import.
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-base font-black tracking-wider text-white uppercase">
-              LYRIC WORD BANK & INSPIRATION
-            </h2>
-            <p className="text-xs text-zinc-300">
-              Curate beautiful, evocative vocabulary for song lyric writing with automatic duplicate detection.
-            </p>
-          </div>
+
+          <button
+            onClick={() => setShowBulkMode(!showBulkMode)}
+            className={`hidden sm:inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition border ${
+              showBulkMode
+                ? 'bg-purple-600 text-white border-purple-400'
+                : 'bg-white/10 text-purple-300 border-white/10 hover:bg-white/20'
+            }`}
+          >
+            <FileText className="h-4 w-4" />
+            <span>{showBulkMode ? 'Single Word Mode' : '+ Add Bulk Words'}</span>
+          </button>
         </div>
 
         {/* Quick Category Loader Buttons */}
@@ -217,7 +278,7 @@ export const WordBankTab: React.FC<WordBankTabProps> = ({ onAppendToMainPrompt }
                 : 'bg-white/10 text-zinc-300 hover:bg-white/20'
             }`}
           >
-            ✨ All Lyric Words
+            ✨ All 125+ Lyric Words
           </button>
           {Object.entries(LYRIC_PRESETS).map(([key, cat]) => (
             <button
@@ -235,54 +296,93 @@ export const WordBankTab: React.FC<WordBankTabProps> = ({ onAppendToMainPrompt }
         </div>
       </div>
 
-      {/* Duplicate Warning Banner */}
-      {duplicateWarning && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-300 backdrop-blur-md animate-bounce">
-          <AlertCircle className="h-4 w-4 shrink-0 text-amber-400" />
-          <span>{duplicateWarning}</span>
+      {/* Notification Banner */}
+      {notification && (
+        <div
+          className={`flex items-center gap-2.5 rounded-xl border px-4 py-3 text-xs font-bold backdrop-blur-md animate-bounce ${
+            notification.type === 'warning'
+              ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+              : notification.type === 'success'
+              ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+              : 'border-purple-500/40 bg-purple-500/10 text-purple-300'
+          }`}
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{notification.text}</span>
         </div>
       )}
 
-      {/* 1. Add Word Input Panel */}
+      {/* 1. Add Single Word & Add Bulk Words Panel */}
       <div className="glass-card relative overflow-hidden rounded-2xl border border-white/10 bg-[#0e0c1d] p-5 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-amber-400" />
             <h3 className="text-xs font-black tracking-widest text-zinc-100 uppercase">
-              ADD CUSTOM LYRIC WORD OR PHRASE
+              {showBulkMode ? 'ADD BULK WORDS (MULTIPLE)' : 'ADD CUSTOM LYRIC WORD OR PHRASE'}
             </h3>
           </div>
-          <span className="text-xs text-zinc-400">
-            Auto-deduplicated (no duplicate words allowed)
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input
-            type="text"
-            value={newWordInput}
-            onChange={(e) => {
-              setNewWordInput(e.target.value);
-              if (duplicateWarning) setDuplicateWarning(null);
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddWord()}
-            placeholder="Type a lyric word or phrase (e.g. golden horizon, silent teardrops)..."
-            className="flex-1 rounded-xl border border-white/10 bg-[#070712] px-4 py-3 font-mono text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/50"
-          />
           <button
-            onClick={handleAddWord}
-            disabled={!newWordInput.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:from-purple-500 hover:to-indigo-500 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={() => setShowBulkMode(!showBulkMode)}
+            className="text-xs font-bold text-purple-400 hover:text-purple-300 underline"
           >
-            <Plus className="h-4 w-4" />
-            <span>Add Word</span>
+            {showBulkMode ? 'Switch to single word input' : 'Switch to bulk paste mode'}
           </button>
         </div>
+
+        {showBulkMode ? (
+          /* Bulk Input Form */
+          <div className="space-y-3">
+            <textarea
+              value={bulkInput}
+              onChange={(e) => setBulkInput(e.target.value)}
+              rows={4}
+              placeholder="Paste multiple words or phrases separated by commas or lines...&#10;Example:&#10;ethereal glow, golden stardust, endless summer&#10;velvet silence, ocean echoes"
+              className="w-full resize-none rounded-xl border border-white/10 bg-[#070712] p-4 font-mono text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/50"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setBulkInput('')}
+                disabled={!bulkInput.trim()}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-zinc-300 transition hover:bg-white/15 disabled:opacity-40"
+              >
+                Clear Text
+              </button>
+              <button
+                onClick={handleAddBulkWords}
+                disabled={!bulkInput.trim()}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-500 px-6 py-2.5 text-sm font-bold text-white shadow-lg transition hover:opacity-90 active:scale-[0.98] disabled:opacity-40"
+              >
+                <FileText className="h-4 w-4" />
+                <span>Add Bulk Words</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Single Word Form */
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              type="text"
+              value={newWordInput}
+              onChange={(e) => setNewWordInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddWord()}
+              placeholder="Type a lyric word or phrase (e.g. golden horizon, silent teardrops)..."
+              className="flex-1 rounded-xl border border-white/10 bg-[#070712] px-4 py-3 font-mono text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/50"
+            />
+            <button
+              onClick={handleAddWord}
+              disabled={!newWordInput.trim()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:from-purple-500 hover:to-indigo-500 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Word</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 2. Word Bank Collection */}
       <div className="glass-card relative overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d1a] p-5 shadow-xl">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-3">
           <div className="flex items-center gap-3">
             <h3 className="text-xs font-black tracking-widest text-purple-300 uppercase flex items-center gap-2">
               <Layers className="h-4 w-4 text-purple-400" />
@@ -293,20 +393,25 @@ export const WordBankTab: React.FC<WordBankTabProps> = ({ onAppendToMainPrompt }
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Controls: Reload presets + CLEAR THE WORD BANK */}
+          <div className="flex items-center gap-3">
             <button
               onClick={handleLoadAllPresets}
-              className="text-xs font-semibold text-purple-400 hover:text-purple-300 transition underline underline-offset-4"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-400 hover:text-purple-300 transition underline underline-offset-4"
+              title="Reload default 125+ lyric dictionary"
             >
-              Reload default lyric dictionary
+              <RefreshCw className="h-3 w-3" />
+              <span>Reload default dictionary</span>
             </button>
+
             {words.length > 0 && (
               <button
                 onClick={handleClearAll}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-bold text-red-400 transition hover:bg-red-500/20"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/15 px-3.5 py-1.5 text-xs font-bold text-red-300 shadow-sm transition hover:bg-red-500/30 hover:border-red-500/60 active:scale-95"
+                title="Hapus semua kata dari Word Bank"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>Clear Bank</span>
+                <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                <span>CLEAR THE WORD BANK</span>
               </button>
             )}
           </div>
@@ -314,15 +419,21 @@ export const WordBankTab: React.FC<WordBankTabProps> = ({ onAppendToMainPrompt }
 
         {/* Word Tag Cloud */}
         {words.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/10 bg-[#070712]/50 py-8 text-center text-sm text-zinc-500">
-            Your Lyric Word Bank is empty. Type words above or click{' '}
-            <button onClick={handleLoadAllPresets} className="text-purple-400 underline font-semibold">
-              Reload default lyric dictionary
-            </button>{' '}
-            to load words.
+          <div className="rounded-xl border border-dashed border-white/10 bg-[#070712]/50 py-10 text-center text-sm text-zinc-400">
+            <p className="font-semibold text-zinc-300 mb-2">Word Bank kamu saat ini kosong (Empty Word Bank).</p>
+            <p className="text-xs text-zinc-500 mb-4">
+              Ketik kata di atas, gunakan <span className="text-purple-400 font-bold">Add Bulk Words</span>, atau muat ulang dictionary bawaan.
+            </p>
+            <button
+              onClick={handleLoadAllPresets}
+              className="inline-flex items-center gap-2 rounded-xl bg-purple-600/30 border border-purple-500/40 px-4 py-2 text-xs font-bold text-purple-200 transition hover:bg-purple-600/50"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Reload Default Lyric Dictionary</span>
+            </button>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto p-1 pr-2">
+          <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-1 pr-2">
             {words.map((word, idx) => (
               <span
                 key={`${word}-${idx}`}
