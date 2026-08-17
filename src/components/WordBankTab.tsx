@@ -74,9 +74,31 @@ const ALL_INITIAL_WORDS = Array.from(
   return found || w;
 });
 
+const STORAGE_KEY = 'spark_prompt_word_bank_v1';
+
 export const WordBankTab: React.FC<WordBankTabProps> = ({ onAppendToMainPrompt }) => {
-  // Words list state initialized with full lyric dictionary
-  const [words, setWords] = useState<string[]>(ALL_INITIAL_WORDS);
+  // Words list state initialized with localStorage persistence or default dictionary
+  const [words, setWords] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved !== null) {
+        return JSON.parse(saved);
+      }
+    } catch (err) {
+      console.error('Failed to read word bank from localStorage', err);
+    }
+    return ALL_INITIAL_WORDS;
+  });
+
+  // Save words to localStorage whenever updated
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
+    } catch (err) {
+      console.error('Failed to save word bank to localStorage', err);
+    }
+  }, [words]);
+
   const [newWordInput, setNewWordInput] = useState<string>('');
   const [bulkInput, setBulkInput] = useState<string>('');
   const [showBulkMode, setShowBulkMode] = useState<boolean>(false);
